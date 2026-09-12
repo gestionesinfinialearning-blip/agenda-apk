@@ -1,6 +1,6 @@
 {
   "appId": "com.miempresa.agenda",
   "appName": "Agenda",
-  "webDir": "www",
+  "webDir": ".",
   "bundledWebRuntime": false
 }
