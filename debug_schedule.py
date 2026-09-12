@@ -2,23 +2,21 @@ path = 'index.html'
 with open(path, 'r', encoding='utf-8') as f:
     content = f.read()
 
-marker = 'DEBUG_SCHEDULE_OVERRIDE'
+marker = 'ALERT_SCHEDULE_DEBUG'
 if marker in content:
     print('Ya estaba aplicado')
 else:
     patch = """
 <script>
+// ALERT_SCHEDULE_DEBUG
 scheduleLocalNotification = async function(task){
-  var el = document.getElementById('banner');
-  function log(msg){
-    if(el){ el.textContent = msg; el.classList.add('show'); el.style.position='sticky'; el.style.top='0'; el.style.zIndex='999'; el.style.fontSize='11px'; }
-  }
+  function log(msg){ alert('DEBUG: ' + msg); }
   try{
     var LN = getLN();
-    if(!LN){ log('DEBUG: no hay plugin LN'); return; }
-    if(!task.important){ log('DEBUG: tarea no es importante'); return; }
-    if(!task.due){ log('DEBUG: tarea sin fecha'); return; }
-    if(task.done){ log('DEBUG: tarea ya hecha'); return; }
+    if(!LN){ log('no hay plugin LN'); return; }
+    if(!task.important){ log('tarea no es importante'); return; }
+    if(!task.due){ log('tarea sin fecha'); return; }
+    if(task.done){ log('tarea ya hecha'); return; }
     var due = new Date(task.due).getTime();
     var base = hashId(task.id);
     var notifications = [];
@@ -35,13 +33,13 @@ scheduleLocalNotification = async function(task){
       notifications.push({ id: base+3, title:'Tarea importante', body: task.title + ' vence pronto', schedule:{ at: new Date(due) } });
       rama += '+inmediata';
     }
-    log('DEBUG rama=' + rama + ' due=' + new Date(due).toLocaleTimeString() + ' now=' + new Date(now).toLocaleTimeString() + ' notifs=' + notifications.length);
+    log('rama=' + rama + ' | due=' + new Date(due).toLocaleTimeString() + ' | now=' + new Date(now).toLocaleTimeString() + ' | notifs=' + notifications.length);
     if(notifications.length){
       await LN.schedule({ notifications: notifications });
-      log('DEBUG programado OK: ' + JSON.stringify(notifications.map(function(n){ return {id:n.id, at:n.schedule.at}; })));
+      log('programado OK, id/at=' + JSON.stringify(notifications.map(function(n){ return {id:n.id, at:n.schedule.at}; })));
     }
   }catch(e){
-    log('DEBUG ERROR: ' + e.message);
+    log('ERROR: ' + e.message);
   }
 };
 </script>
@@ -53,4 +51,4 @@ scheduleLocalNotification = async function(task){
         content = content[:idx] + patch + content[idx:]
     with open(path, 'w', encoding='utf-8') as f:
         f.write(content)
-    print('OK: debug schedule agregado')
+    print('OK: alert debug agregado')
