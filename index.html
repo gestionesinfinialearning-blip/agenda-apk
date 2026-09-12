@@ -691,14 +691,14 @@ scheduleLocalNotification = async function(task){
     var now = Date.now();
     var rama = '';
     if(due - 86400000 > now){
-      notifications.push({ id: base+1, title:'Tarea importante', body: task.title + ' vence en menos de 24 horas', schedule:{ at: new Date(due-86400000) } });
+      notifications.push({ id: base+1, title:'Tarea importante', body: task.title + ' vence en menos de 24 horas', schedule:{ at: new Date(due-86400000), allowWhileIdle: true } });
       rama = '24h';
     }
     if(due - 3600000 > now){
-      notifications.push({ id: base+2, title:'Tarea importante', body: task.title + ' vence en menos de 1 hora', schedule:{ at: new Date(due-3600000) } });
+      notifications.push({ id: base+2, title:'Tarea importante', body: task.title + ' vence en menos de 1 hora', schedule:{ at: new Date(due-3600000), allowWhileIdle: true } });
       rama += '+1h';
     } else if(due > now){
-      notifications.push({ id: base+3, title:'Tarea importante', body: task.title + ' vence pronto', schedule:{ at: new Date(due) } });
+      notifications.push({ id: base+3, title:'Tarea importante', body: task.title + ' vence pronto', schedule:{ at: new Date(due), allowWhileIdle: true } });
       rama += '+inmediata';
     }
     window.debugLog('rama=' + rama + ' due=' + new Date(due).toLocaleTimeString() + ' now=' + new Date(now).toLocaleTimeString() + ' cantNotifs=' + notifications.length);
