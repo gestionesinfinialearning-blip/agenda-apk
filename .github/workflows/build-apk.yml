@@ -20,7 +20,9 @@ jobs:
       - name: Instalar dependencias
         run: npm install
       - name: Agregar plataforma Android
-        run: npx cap add android
+        run: npx cap add android || true
+      - name: Asegurar carpeta assets
+        run: mkdir -p android/app/src/main/assets
       - name: Sincronizar Capacitor
         run: npx cap sync android
       - name: Compilar APK
