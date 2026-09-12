@@ -9,16 +9,34 @@ else:
     patch = """
 <script>
 window.addEventListener('load', function(){
-  setTimeout(function(){
+  if(window.Capacitor){
+    var elBtn = document.getElementById('notifSetup');
+    if(elBtn) elBtn.style.display = 'none';
+  }
+  setTimeout(async function(){
     var el = document.getElementById('banner');
     if(!el) return;
     var tieneCapacitor = !!window.Capacitor;
-    var tienePlugin = !!(window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications);
-    el.textContent = 'DIAGNOSTICO_CAPACITOR -> Capacitor: ' + (tieneCapacitor ? 'SI' : 'NO') + ' | LocalNotifications: ' + (tienePlugin ? 'SI' : 'NO');
+    var LN = (window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications) || null;
+    var texto = 'Capacitor: ' + (tieneCapacitor ? 'SI' : 'NO') + ' | Plugin: ' + (LN ? 'SI' : 'NO');
+    if(LN){
+      try{
+        var perm = await LN.checkPermissions();
+        texto += ' | Permiso: ' + JSON.stringify(perm);
+        var pedido = await LN.requestPermissions();
+        texto += ' | Tras pedir: ' + JSON.stringify(pedido);
+        await LN.schedule({ notifications: [{ id: 999999, title: 'Prueba directa', body: 'Si ves esto, el sistema funciona', schedule: { at: new Date(Date.now() + 15000) } }] });
+        texto += ' | Prueba programada para 15s';
+      }catch(e){
+        texto += ' | ERROR: ' + e.message;
+      }
+    }
+    el.textContent = texto;
     el.classList.add('show');
     el.style.position = 'sticky';
     el.style.top = '0';
     el.style.zIndex = '999';
+    el.style.fontSize = '12px';
   }, 1500);
 });
 </script>
