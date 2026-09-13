@@ -22,6 +22,8 @@ jobs:
         run: mkdir -p www && cp index.html www/ && cp icon-192.png www/ && cp icon-512.png www/
       - name: Agregar plataforma Android
         run: npx cap add android || true
+      - name: Aplicar permisos de batería y alarma
+        run: python3 fix_manifest.py
       - name: Asegurar carpeta assets
         run: mkdir -p android/app/src/main/assets
       - name: Sincronizar Capacitor
