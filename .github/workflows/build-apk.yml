@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
       - name: Instalar dependencias
-        run: npm install
+        run: npm install && npm install @squareetlabs/capacitor-dont-kill-my-app
       - name: Aplicar arreglo de notificaciones
         run: python3 fix_notifications.py && python3 add_diagnostics.py && python3 debug_schedule.py
       - name: Armar carpeta www
