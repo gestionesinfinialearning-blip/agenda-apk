@@ -16,8 +16,6 @@ jobs:
         with: { distribution: temurin, java-version: '17' }
       - name: Instalar dependencias
         run: npm install
-      - name: Aplicar arreglo de notificaciones
-        run: python3 fix_notifications.py && python3 add_diagnostics.py && python3 debug_schedule.py
       - name: Armar carpeta www
         run: mkdir -p www && cp index.html www/ && cp icon-192.png www/ && cp icon-512.png www/
       - name: Agregar plataforma Android
