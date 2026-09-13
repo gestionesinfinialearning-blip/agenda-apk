@@ -148,9 +148,6 @@
   </header>
 
   <div class="banner" id="banner"></div>
-  <div id="notifSetup" style="text-align:center; margin-bottom:18px;">
-    <button class="ghost" id="enableNotif">Activar avisos de este navegador</button>
-  </div>
 
   <div id="calView">
     <div class="cal-nav">
@@ -260,8 +257,6 @@ const doneLabel = document.getElementById('doneLabel');
 const pendingLabel = document.getElementById('pendingLabel');
 const emptyMsg = document.getElementById('emptyMsg');
 const banner = document.getElementById('banner');
-const notifSetup = document.getElementById('notifSetup');
-const enableNotifBtn = document.getElementById('enableNotif');
 const btnListView = document.getElementById('btnListView');
 const btnCalView = document.getElementById('btnCalView');
 const listView = document.getElementById('listView');
@@ -300,11 +295,14 @@ async function scheduleLocalNotification(task){
   const due = new Date(task.due).getTime();
   const base = hashId(task.id);
   const notifications = [];
-  if(due - 86400000 > Date.now()){
-    notifications.push({ id: base+1, title:'Tarea importante', body:`"${task.title}" vence en menos de 24 horas`, schedule:{ at: new Date(due-86400000) } });
+  const now = Date.now();
+  if(due - 86400000 > now){
+    notifications.push({ id: base+1, title:'Tarea importante', body:`"${task.title}" vence en menos de 24 horas`, schedule:{ at: new Date(due-86400000), allowWhileIdle: true } });
   }
-  if(due - 3600000 > Date.now()){
-    notifications.push({ id: base+2, title:'Tarea importante', body:`"${task.title}" vence en menos de 1 hora`, schedule:{ at: new Date(due-3600000) } });
+  if(due - 3600000 > now){
+    notifications.push({ id: base+2, title:'Tarea importante', body:`"${task.title}" vence en menos de 1 hora`, schedule:{ at: new Date(due-3600000), allowWhileIdle: true } });
+  } else if(due > now){
+    notifications.push({ id: base+3, title:'Tarea importante', body:`"${task.title}" vence pronto`, schedule:{ at: new Date(due), allowWhileIdle: true } });
   }
   if(notifications.length){
     try{ await LN.schedule({ notifications }); }catch(e){ console.error('No se pudo programar el aviso', e); }
@@ -315,7 +313,7 @@ async function cancelLocalNotification(task){
   const LN = getLN();
   if(!LN) return;
   const base = hashId(task.id);
-  try{ await LN.cancel({ notifications:[{id:base+1},{id:base+2}] }); }catch(e){ /* no pasa nada si no existía */ }
+  try{ await LN.cancel({ notifications:[{id:base+1},{id:base+2},{id:base+3}] }); }catch(e){ /* no pasa nada si no existía */ }
 }
 
 async function rescheduleAllNotifications(){
@@ -603,13 +601,6 @@ function fireNotification(task, when, wasOverdue){
     new Notification('Tarea importante', { body: phrase });
   }
 }
-enableNotifBtn.addEventListener('click', async () => {
-  if(!window.Notification){ showBanner('Este navegador no admite notificaciones.'); return; }
-  const perm = await Notification.requestPermission();
-  if(perm === 'granted'){ notifSetup.style.display='none'; showBanner('Avisos activados. Vas a ver una notificación cuando una tarea importante esté por vencer, mientras esta pestaña esté abierta.'); }
-});
-if(window.Notification && Notification.permission === 'granted'){ notifSetup.style.display='none'; }
-
 // --- Personalización ---
 openSettingsBtn.onclick = () => settingsOverlay.classList.add('show');
 settingsClose.onclick = () => settingsOverlay.classList.remove('show');
@@ -649,67 +640,6 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });
 }
-</script>
-
-<script>
-// PANEL_DEBUG_FIJO
-(function(){
-  var panel = document.createElement('div');
-  panel.id = 'debugpanel';
-  panel.style.position = 'fixed';
-  panel.style.top = '0';
-  panel.style.left = '0';
-  panel.style.right = '0';
-  panel.style.zIndex = '99999';
-  panel.style.background = 'black';
-  panel.style.color = 'lime';
-  panel.style.fontSize = '11px';
-  panel.style.padding = '6px';
-  panel.style.maxHeight = '40vh';
-  panel.style.overflowY = 'auto';
-  panel.style.whiteSpace = 'pre-wrap';
-  document.body.appendChild(panel);
-  window.debugLog = function(msg){
-    var line = document.createElement('div');
-    line.textContent = new Date().toLocaleTimeString() + ' - ' + msg;
-    panel.appendChild(line);
-  };
-  window.debugLog('panel cargado');
-})();
-
-scheduleLocalNotification = async function(task){
-  try{
-    window.debugLog('scheduleLocalNotification llamado para: ' + task.title);
-    var LN = getLN();
-    if(!LN){ window.debugLog('NO hay plugin LN'); return; }
-    if(!task.important){ window.debugLog('tarea NO es importante'); return; }
-    if(!task.due){ window.debugLog('tarea SIN fecha'); return; }
-    if(task.done){ window.debugLog('tarea ya esta hecha'); return; }
-    var due = new Date(task.due).getTime();
-    var base = hashId(task.id);
-    var notifications = [];
-    var now = Date.now();
-    var rama = '';
-    if(due - 86400000 > now){
-      notifications.push({ id: base+1, title:'Tarea importante', body: task.title + ' vence en menos de 24 horas', schedule:{ at: new Date(due-86400000), allowWhileIdle: true } });
-      rama = '24h';
-    }
-    if(due - 3600000 > now){
-      notifications.push({ id: base+2, title:'Tarea importante', body: task.title + ' vence en menos de 1 hora', schedule:{ at: new Date(due-3600000), allowWhileIdle: true } });
-      rama += '+1h';
-    } else if(due > now){
-      notifications.push({ id: base+3, title:'Tarea importante', body: task.title + ' vence pronto', schedule:{ at: new Date(due), allowWhileIdle: true } });
-      rama += '+inmediata';
-    }
-    window.debugLog('rama=' + rama + ' due=' + new Date(due).toLocaleTimeString() + ' now=' + new Date(now).toLocaleTimeString() + ' cantNotifs=' + notifications.length);
-    if(notifications.length){
-      await LN.schedule({ notifications: notifications });
-      window.debugLog('PROGRAMADO OK: ' + JSON.stringify(notifications.map(function(n){ return {id:n.id, at:n.schedule.at}; })));
-    }
-  }catch(e){
-    window.debugLog('ERROR: ' + e.message);
-  }
-};
 </script>
 </body>
 </html>
