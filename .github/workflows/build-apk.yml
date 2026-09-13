@@ -15,9 +15,9 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
       - name: Instalar dependencias
-        run: npm install && npm install @squareetlabs/capacitor-dont-kill-my-app
+        run: npm install --legacy-peer-deps && npm install @squareetlabs/capacitor-dont-kill-my-app --legacy-peer-deps
       - name: Aplicar arreglo de notificaciones
-        run: python3 fix_notifications.py && python3 add_diagnostics.py && python3 debug_schedule.py
+        run: python3 fix_notifications.py && python3 add_diagnostics.py && python3 debug_schedule.py && python3 fix_battery_request.py
       - name: Armar carpeta www
         run: mkdir -p www && cp index.html www/ && cp icon-192.png www/ && cp icon-512.png www/
       - name: Agregar plataforma Android
