@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -265,12 +265,17 @@ async function apiPost(body){
   });
   return res.json();
 }
+function toLocalInputValue(d){
+  const dt = new Date(d);
+  const p = n => String(n).padStart(2,'0');
+  return `${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())}T${p(dt.getHours())}:${p(dt.getMinutes())}`;
+}
 async function fetchTasksFromServer(){
   if(!userMail) return;
   try{
     const data = await apiGet({ action:'tasks', mail:userMail });
     tasks = (data.tareas || []).map(t => ({
-      id: t.id, title: t.titulo, due: t.fecha ? new Date(t.fecha).toISOString().slice(0,16) : null,
+      id: t.id, title: t.titulo, due: t.fecha ? toLocalInputValue(t.fecha) : null,
       important: !!t.importante, done: !!t.hecha
     }));
   }catch(e){ console.error('No se pudieron traer las tareas', e); }
