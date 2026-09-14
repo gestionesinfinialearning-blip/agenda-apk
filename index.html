@@ -179,6 +179,10 @@
     <ul class="list" id="doneList"></ul>
     <div class="empty" id="emptyMsg" style="display:none;">No hay tareas cargadas todavía.</div>
   </div>
+
+  <footer style="text-align:center; margin-top:40px; padding-top:16px; border-top:1px solid var(--paper-line); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:12px; color:var(--ink-soft);">
+    Desarrollado por <strong>Cristina F. Domínguez</strong>
+  </footer>
 </div>
 
 <div class="overlay" id="overlay">
@@ -229,9 +233,48 @@
   </div>
 </div>
 
+<div class="overlay show" id="mailOverlay">
+  <div class="room">
+    <div class="room-header"><h2>Bienvenido/a</h2></div>
+    <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:13px; color:var(--ink-soft);">Ingresá tu mail para vincular tus tareas y recibir los avisos ahí.</p>
+    <div class="room-add">
+      <input type="text" id="mailInput" placeholder="tu@mail.com" style="flex:2; min-width:200px;">
+      <button id="mailSubmitBtn">Vincular</button>
+    </div>
+    <p id="mailMsg" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:12px; color:var(--ink-soft);"></p>
+  </div>
+</div>
+
 <script>
 const STORAGE_KEY = 'agenda:tasks';
 const SETTINGS_KEY = 'agenda:settings';
+const MAIL_KEY = 'agenda:mail';
+const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzRq3cVTkwCAYcwqAYj74CY4p2kEm2CSqorTZNv3x_eKHUT39uKwzSkGxkeqC1BRhWH/exec';
+let userMail = localStorage.getItem(MAIL_KEY) || null;
+
+async function apiGet(params){
+  const url = APP_SCRIPT_URL + '?' + new URLSearchParams(params).toString();
+  const res = await fetch(url);
+  return res.json();
+}
+async function apiPost(body){
+  const res = await fetch(APP_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+async function fetchTasksFromServer(){
+  if(!userMail) return;
+  try{
+    const data = await apiGet({ action:'tasks', mail:userMail });
+    tasks = (data.tareas || []).map(t => ({
+      id: t.id, title: t.titulo, due: t.fecha ? new Date(t.fecha).toISOString().slice(0,16) : null,
+      important: !!t.importante, done: !!t.hecha
+    }));
+  }catch(e){ console.error('No se pudieron traer las tareas', e); }
+}
 
 const THEMES = {
   papel:    { label:'Papel',    paper:'#F7F3EA', paperLine:'#E4DCC8', ink:'#24302B', inkSoft:'#5B6660', accent:'#3B4C6B', accentBg:'#E4E9F0', important:'#B5533C', importantBg:'#F3E4DD', doneBg:'#E9ECE7', done:'#8C9690', white:'#FFFDF8' },
@@ -283,55 +326,18 @@ const themeGrid = document.getElementById('themeGrid');
 const accentInput = document.getElementById('accentInput');
 const clearAccentBtn = document.getElementById('clearAccent');
 const saveSettingsBtn = document.getElementById('saveSettings');
+const mailOverlay = document.getElementById('mailOverlay');
+const mailInput = document.getElementById('mailInput');
+const mailSubmitBtn = document.getElementById('mailSubmitBtn');
+const mailMsg = document.getElementById('mailMsg');
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
-function hashId(str){ let h=0; for(let i=0;i<str.length;i++){ h=(h*31+str.charCodeAt(i))|0; } return (Math.abs(h)%900000)+1000; }
-
-function getLN(){ return window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications; }
-
-async function scheduleLocalNotification(task){
-  const LN = getLN();
-  if(!LN || !task.important || !task.due || task.done) return;
-  const due = new Date(task.due).getTime();
-  const base = hashId(task.id);
-  const notifications = [];
-  const now = Date.now();
-  if(due - 86400000 > now){
-    notifications.push({ id: base+1, title:'Tarea importante', body:`"${task.title}" vence en menos de 24 horas`, schedule:{ at: new Date(due-86400000), allowWhileIdle: true } });
-  }
-  if(due - 3600000 > now){
-    notifications.push({ id: base+2, title:'Tarea importante', body:`"${task.title}" vence en menos de 1 hora`, schedule:{ at: new Date(due-3600000), allowWhileIdle: true } });
-  } else if(due > now){
-    notifications.push({ id: base+3, title:'Tarea importante', body:`"${task.title}" vence pronto`, schedule:{ at: new Date(due), allowWhileIdle: true } });
-  }
-  if(notifications.length){
-    try{ await LN.schedule({ notifications }); }catch(e){ console.error('No se pudo programar el aviso', e); }
-  }
-}
-
-async function cancelLocalNotification(task){
-  const LN = getLN();
-  if(!LN) return;
-  const base = hashId(task.id);
-  try{ await LN.cancel({ notifications:[{id:base+1},{id:base+2},{id:base+3}] }); }catch(e){ /* no pasa nada si no existía */ }
-}
-
-async function rescheduleAllNotifications(){
-  const LN = getLN();
-  if(!LN) return;
-  try{ await LN.requestPermissions(); }catch(e){ /* ya concedido o no disponible */ }
-  for(const t of tasks){ await scheduleLocalNotification(t); }
-}
 function pad(n){ return n.toString().padStart(2,'0'); }
 function dayKey(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 
 const NOTIFIED_KEY = 'agenda:notified';
 
 async function loadAll(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    tasks = raw ? JSON.parse(raw) : [];
-  }catch(e){ tasks = []; }
   try{
     const raw2 = localStorage.getItem(SETTINGS_KEY);
     if(raw2) settings = { ...settings, ...JSON.parse(raw2) };
@@ -343,11 +349,30 @@ async function loadAll(){
   applyTheme();
   applyProfile();
   renderThemeGrid();
+
+  if(!userMail){
+    mailOverlay.classList.add('show');
+    return;
+  }
+  mailOverlay.classList.remove('show');
+  await fetchTasksFromServer();
   renderAll();
+  abrirTareaDesdeLink();
 }
-async function saveTasks(){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
-  catch(e){ console.error('No se pudo guardar', e); }
+function abrirTareaDesdeLink(){
+  const params = new URLSearchParams(window.location.search);
+  const tareaId = params.get('tarea');
+  if(!tareaId) return;
+  const t = tasks.find(x => x.id === tareaId);
+  if(!t) return;
+  if(t.due){
+    const d = new Date(t.due);
+    currentMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+    renderCalendar();
+    openRoom(dayKey(d));
+  }else{
+    document.getElementById('openUnscheduled').click();
+  }
 }
 async function saveSettings(){
   try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
@@ -477,28 +502,23 @@ function taskRow(t){
 }
 
 async function toggleDone(id){
-  const t = tasks.find(x=>x.id===id);
-  if(t){
-    t.done=!t.done;
-    if(t.done) await cancelLocalNotification(t); else await scheduleLocalNotification(t);
-    await saveTasks(); renderAll();
-  }
+  try{ await apiPost({ action:'toggleTask', id }); }catch(e){ console.error(e); }
+  await fetchTasksFromServer(); renderAll();
 }
 async function removeTask(id){
-  const t = tasks.find(x=>x.id===id);
-  if(t) await cancelLocalNotification(t);
-  tasks = tasks.filter(x=>x.id!==id); await saveTasks(); renderAll();
+  try{ await apiPost({ action:'deleteTask', id }); }catch(e){ console.error(e); }
+  await fetchTasksFromServer(); renderAll();
 }
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const title = titleInput.value.trim();
   if(!title) return;
-  const newTask = { id: uid(), title, due: dueInput.value || null, important: importantInput.checked, done:false };
-  tasks.push(newTask);
-  await scheduleLocalNotification(newTask);
+  try{
+    await apiPost({ action:'addTask', mail:userMail, titulo:title, fecha: dueInput.value || null, importante: importantInput.checked });
+  }catch(e){ console.error(e); }
   titleInput.value=''; dueInput.value=''; importantInput.checked=false;
-  await saveTasks(); renderAll();
+  await fetchTasksFromServer(); renderAll();
 });
 
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -572,11 +592,11 @@ document.getElementById('roomAddBtn').onclick = async () => {
   if(!title) return;
   let due = null;
   if(roomDate !== null){ const time = roomTaskTime.value || '09:00'; due = `${roomDate}T${time}`; }
-  const newTask = { id: uid(), title, due, important: roomTaskImportant.checked, done:false };
-  tasks.push(newTask);
-  await scheduleLocalNotification(newTask);
+  try{
+    await apiPost({ action:'addTask', mail:userMail, titulo:title, fecha: due, importante: roomTaskImportant.checked });
+  }catch(e){ console.error(e); }
   roomTaskTitle.value=''; roomTaskTime.value=''; roomTaskImportant.checked=false;
-  await saveTasks(); renderAll();
+  await fetchTasksFromServer(); renderAll();
 };
 
 btnListView.onclick = () => { btnListView.classList.add('active'); btnCalView.classList.remove('active'); listView.style.display='block'; calView.style.display='none'; };
@@ -597,9 +617,6 @@ function checkReminders(){
 function fireNotification(task, when, wasOverdue){
   const phrase = wasOverdue ? `"${task.title}" venció hace poco.` : `"${task.title}" vence ${when}.`;
   showBanner(phrase);
-  if(window.Notification && Notification.permission === 'granted'){
-    new Notification('Tarea importante', { body: phrase });
-  }
 }
 // --- Personalización ---
 openSettingsBtn.onclick = () => settingsOverlay.classList.add('show');
@@ -632,7 +649,25 @@ saveSettingsBtn.onclick = async () => {
   showBanner('Personalización guardada.');
 };
 
-loadAll().then(() => { checkReminders(); rescheduleAllNotifications(); });
+mailSubmitBtn.addEventListener('click', async () => {
+  const mail = mailInput.value.trim();
+  if(!mail || !mail.includes('@')){ mailMsg.textContent = 'Ingresá un mail válido.'; return; }
+  mailMsg.textContent = 'Vinculando...';
+  try{
+    await apiGet({ action:'link', mail });
+    localStorage.setItem(MAIL_KEY, mail);
+    userMail = mail;
+    mailMsg.textContent = '';
+    mailOverlay.classList.remove('show');
+    await fetchTasksFromServer();
+    renderAll();
+    abrirTareaDesdeLink();
+  }catch(e){
+    mailMsg.textContent = 'No se pudo vincular, probá de nuevo.';
+  }
+});
+
+loadAll().then(() => { checkReminders(); });
 setInterval(() => { renderAll(); checkReminders(); }, 30000);
 
 if('serviceWorker' in navigator){
